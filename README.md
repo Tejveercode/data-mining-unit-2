@@ -18,11 +18,11 @@ Course outcomes served: **CO2** — analyze the various data pre-processing tech
 | 06 | [notes/06-data-reduction-sampling-attribute-subset.md](notes/06-data-reduction-sampling-attribute-subset.md) | 5+ sampling methods, sample-size formulas, filter/wrapper/embedded |
 | 07 | [notes/07-data-transformation-normalization-encoding.md](notes/07-data-transformation-normalization-encoding.md) | 5 normalizations, 6 encodings, full worked mini-pipeline |
 | 08 | [notes/08-concept-hierarchy-discretization.md](notes/08-concept-hierarchy-discretization.md) | Equal-width/frequency, entropy split by hand, hierarchies |
-| 09 | [notes/09-frequent-pattern-mining-basics.md](notes/09-frequent-pattern-mining-basics.md) | Itemsets, support/confidence/lift, the two-phase mining task |
+| 09 | [notes/09-frequent-pattern-mining-basics.md](notes/09-frequent-pattern-mining-basics.md) | FPM intro (terms, 5 pattern types, 5 challenges, Apriori/FP-Growth/Eclat, applications) + support/confidence/lift with your datasets |
 | 10 | [notes/10-apriori-working-principle.md](notes/10-apriori-working-principle.md) | Apriori property, pseudocode, join/prune/count, complexity |
 | 11 | [notes/11-apriori-example-problems.md](notes/11-apriori-example-problems.md) | The 5 LMS problems solved + 3 extras, with every counting table |
-| 12 | [notes/12-fp-growth.md](notes/12-fp-growth.md) | FP-tree construction traced node by node, conditional bases, comparison |
-| 13 | [notes/13-rule-generation-interestingness.md](notes/13-rule-generation-interestingness.md) | apriori-genrules, 10 interestingness measures, closed/maximal sets |
+| 12 | [notes/12-fp-growth.md](notes/12-fp-growth.md) | FP-tree construction traced on your LMS dataset, conditional bases, 7-step extraction, comparison |
+| 13 | [notes/13-rule-generation-interestingness.md](notes/13-rule-generation-interestingness.md) | 6-step rule generation, your Bread/Milk/Butter example, 10 interestingness measures, closed/maximal sets |
 | — | [exam/cheat-sheet.md](exam/cheat-sheet.md) | All definitions, formulas, comparison tables, mnemonics, key numbers |
 | — | [exam/question-bank.md](exam/question-bank.md) | 96 questions (2/5/10 marks) with model-answer outlines + 15 numericals |
 | — | [resources/recommended-resources.md](resources/recommended-resources.md) | The one best book, alternatives, and the minimum set |
@@ -50,8 +50,8 @@ Real data is dirty, huge and redundant. **Pre-processing** (Ch. 2.1–2.2) makes
 ## Run the code
 
 ```bash
-python unit2_toolkit.py            # all six demos
-python unit2_toolkit.py apriori    # just association mining
+python code/unit2_toolkit.py            # all six demos
+python code/unit2_toolkit.py apriori    # just association mining
 ```
 No dependencies. It reproduces every worked example in the notes: binning, IQR/z-score, min–max/z-score/decimal scaling, entropy split (threshold 21, gain 0.322), Apriori levels `L1/L2/L3`, the rule table with lift/leverage/conviction, and the FP-tree (`A:4→C:3→B:2` plus `C:1→B:1`).
 
@@ -71,15 +71,15 @@ To rebuild the PDFs: `pip install reportlab && python build_pdf.py`.
 | 2.2 | Data Reduction — Sampling, Attribute Subset Selection | 06 |
 | 2.2 | Data Transformation — Normalization, Encoding | 07 |
 | 2.2 | Data Transformation — Concept Hierarchy, Discretization | 08 |
-| 2.2 | Introduction to Frequent Pattern Mining | 09 |
-| 2.2 | Frequent Itemset Concepts — Support, Confidence, Lift | 09 |
+| 2.2 | Introduction to Frequent Pattern Mining | 09 (Part A) |
+| 2.2 | Frequent Itemset Concepts — Support, Confidence, Lift | 09 (Part B) |
 | 2.3 | Apriori Algorithm — Working Principle | 10 |
 | 2.3 | Apriori Algorithm — Example Problems | 11 |
-| 2.3 | FP-Growth — Tree Construction | 12 |
-| 2.3 | FP-Growth — Pattern Extraction | 12 |
+| 2.3 | FP-Growth — Tree Construction | 12 (Part A) |
+| 2.3 | FP-Growth — Pattern Extraction | 12 (Part B) |
 | 2.3 | Mining Association Rules — Rule Generation, Interestingness | 13 |
 
-Notes 08, 09, 12 and 13 cover LMS pages that were not yet supplied; they were written from the course textbooks (Han Ch. 3 & 6, Tan Ch. 2 & 6) in the same style and will be aligned word-for-word with the LMS versions once available.
+Notes 01–07 and 09–13 follow the corresponding LMS pages directly, in the same order and with the same examples (all numericals re-verified by running the algorithms). **Note 08** is the one topic whose LMS page was not supplied — it is written from the textbooks (Han Ch. 3, Tan Ch. 2) and will be aligned the moment that page arrives.
 
 ---
 

@@ -15,7 +15,9 @@
 - **Normalization:** rescale numerics to a standard scale. **Encoding:** convert categories to numbers.
 - **Discretization:** continuous → intervals. **Binarization:** two intervals.
 - **Concept hierarchy:** values organised specific → general (city → state → country).
-- **Frequent itemset:** itemset with `support ≥ minsup`. **Association rule:** `X → Y`, `X ∩ Y = ∅`.
+- **Frequent itemset:** itemset with `support ≥ minsup`. **Candidate itemset:** a potential itemset still to be evaluated. **Transaction:** a record of items occurring together.
+- **Association rule:** `X → Y`, `X ∩ Y = ∅`; antecedent X, consequent Y.
+- **Five pattern types:** frequent **itemsets**, **sequences**, **substructures**, **closed** itemsets, **maximal** itemsets.
 
 ## 2. All the formulas
 
@@ -54,6 +56,10 @@
 | simple, exact | complex, exact |
 | slow on dense/long data | **fast** on dense data |
 | memory: candidate sets | memory: **FP-tree must fit in RAM** |
+
+**Third algorithm — Eclat:** depth-first, **vertical** data layout (item → tid-list); support = `|tid(A) ∩ tid(B)|`; no repeated DB scans; best on **dense** data.
+
+**Five challenges (why these algorithms exist):** `2ⁿ` itemsets · low minsup → too many patterns · sparsity → low overlap · repeated scans · memory.
 
 **Filter vs Wrapper vs Embedded**
 
