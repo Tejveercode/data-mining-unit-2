@@ -1,172 +1,255 @@
-# Topic 9 — Introduction to Frequent Pattern Mining (Support, Confidence, Lift)
+# Topic 9 — Introduction to Frequent Pattern Mining; Support, Confidence, Lift
 
-> **LMS pages:** *Chapter 2.2 — Introduction to Frequent Pattern Mining* and *Frequent Itemset Mining Concepts: Support, Confidence, Lift* · Course outcome **CO3: characterize the kinds of patterns that can be discovered by association rule mining.**
-> *These two pages had not arrived when this was written, so it is built from the course textbooks (Han Ch. 6, Tan Ch. 6) in the same style. It will be aligned with your pages when they arrive.*
-
----
-
-## 1. What frequent pattern mining is
-
-**Definition.** Frequent pattern mining finds **patterns (itemsets, subsequences, substructures) that appear frequently in a dataset** — and, from them, **association rules** describing how items co-occur.
-
-The canonical example is **market basket analysis**: each transaction is the set of items in one basket; the question is *"which items are bought together?"* — the engine behind "customers who bought X also bought Y".
-
-**Why it matters (applications):**
-- **Retail / e-commerce**: cross-selling, product placement, bundle design, recommendations.
-- **Web usage mining**: which pages are visited together → site redesign, ads.
-- **Medical**: symptom/drug co-occurrence → diagnosis and adverse-reaction signals.
-- **Bioinformatics**: gene co-expression, protein interaction patterns.
-- **Fraud / intrusion detection**: unusual combinations of actions.
-- **Document/text mining**: term co-occurrence, topic discovery.
-
-**Why not just use SQL `GROUP BY`?** Because the number of possible itemsets is exponential: with *d* items there are `2^d − 1` non-empty itemsets. d = 100 → about 1.27 × 10³⁰. Brute force is impossible, which is exactly why algorithms (Apriori, FP-Growth) and pruning principles exist.
+> **LMS pages:** *Chapter 2.2 — Introduction to Frequent Pattern Mining* (**CO2**) and *Chapter 2.2 — Frequent Itemset Mining Concepts: Support, Confidence, Lift* (**CO3**)
+> Both pages are covered in full below, in their own order, with the worked examples from your pages completed.
 
 ---
 
-## 2. The transaction data model
+# PART A — Introduction to Frequent Pattern Mining
 
-**Transaction database.** A set of transactions `D = {T₁, T₂, …, T_N}`, each `Tᵢ ⊆ I`, where `I = {i₁, i₂, …, i_d}` is the set of all items.
+## A1. What frequent pattern mining is
 
-| TID | Items |
-|---|---|
-| T1 | Bread, Milk |
-| T2 | Bread, Diapers, Beer, Eggs |
-| T3 | Milk, Diapers, Beer, Coke |
-| T4 | Bread, Milk, Diapers, Beer |
-| T5 | Bread, Milk, Diapers, Coke |
+**Definition.** Frequent pattern mining is one of the **core tasks of data mining**. It focuses on discovering **patterns, relationships or associations among items in large datasets**. A **frequent pattern** is a **set of items, subsequences or substructures that appear together frequently in a dataset**.
 
-**The vocabulary you must be able to define precisely:**
+It is the foundation of **market basket analysis, recommendation systems, web usage mining and bioinformatics**.
+
+**What counts as a "frequent pattern"?** Any pattern **whose frequency of occurrence is higher than a user-defined threshold** (the minimum support). The threshold decides everything: the same data yields different pattern sets at different thresholds.
+
+**Examples of patterns:**
+- pairs of products frequently bought together (itemsets),
+- sequences of web-page visits (sequences),
+- common substructures in chemical compounds (substructures).
+
+## A2. Key terms (the definitions your page lists — learn them verbatim)
 
 | Term | Definition |
 |---|---|
-| **Item** | a single element, e.g. `Milk` |
-| **Itemset** | a set of one or more items, e.g. `{Milk, Bread}`; a **k-itemset** has k items |
-| **Transaction** | one basket/record; a set of items |
-| **Support count σ(X)** | the **number of transactions** containing itemset X |
-| **Support s(X)** | the **fraction** of transactions containing X: `σ(X)/N` |
-| **Frequent itemset** | an itemset with `support ≥ minsup` |
-| **Association rule** | an implication `X → Y` where `X, Y` are disjoint itemsets (`X ∩ Y = ∅`) |
-| **Confidence** | how often the rule is true: `c(X→Y) = σ(X∪Y)/σ(X)` |
-| **Lift** | how much X improves the chance of Y: `lift = c(X→Y)/s(Y) = s(X∪Y)/(s(X)·s(Y))` |
-| **Strong rule** | a rule with `support ≥ minsup` **and** `confidence ≥ minconf` |
+| **Support** | how often a set of items appears in the dataset; the **strength** of the pattern in the whole collection |
+| **Itemset** | a collection of one or more items (e.g. *Bread and Butter* is a **two-itemset**) |
+| **Frequent itemset** | an itemset whose support is **greater than or equal to** the minimum support threshold |
+| **Candidate itemset** | a **potential** itemset that may become frequent and still needs to be evaluated |
+| **Transaction** | a record containing a set of items purchased or occurring together |
+| **Minimum support** | the **user-defined value** that determines whether an itemset is frequent |
 
----
+Two more that the later pages add: **association rule** (`X → Y`, where X and Y are disjoint) and **minimum confidence** (the threshold a rule's confidence must reach).
 
-## 3. Support
+> **Why "candidate" matters.** Candidate itemsets are the *output of the join step and the input to counting* — they are the reason Apriori is expensive, and the thing FP-Growth eliminates. If an exam asks "what does FP-Growth avoid generating?", the answer is **candidate itemsets**.
 
-```
-support(X) = (number of transactions containing X) / (total transactions) = σ(X)/N
-```
+## A3. Why frequent pattern mining is important
 
-*Using the table above (N = 5):*
-- `σ({Bread}) = 4` → support = 0.8 (80 %)
-- `σ({Milk, Diaper}) = 3` → support = 0.6 (60 %)
-- `σ({Milk, Bread, Diaper}) = 2` → support = 0.4 (40 %)
+It reveals **co-occurrence relationships** — which items, events or behaviours appear together. Those relationships support business decisions, improve customer experience and enhance system intelligence.
 
-**What support means in words:** *how common the combination is.* Low support → the pattern may be a coincidence (and would not be profitable to act on). High support → the pattern is frequent but may be too obvious to be interesting.
-
-**Minimum support (minsup)** is set by the user — a business choice: 0.01 for 1 million transactions still means 10,000 baskets.
-
-**Support is anti-monotonic** (downward closed): if `X ⊆ Y` then `support(Y) ≤ support(X)`. Adding an item can never increase the number of baskets containing the set. **This single property is what makes mining feasible** (see Topic 10).
-
----
-
-## 4. Confidence
-
-```
-confidence(X → Y) = support(X ∪ Y) / support(X) = σ(X∪Y)/σ(X)
-```
-
-*Example:* with 5 transactions, `σ({Bread, Diaper}) = 3`, `σ({Bread}) = 4`:
-```
-Bread → Diaper:  confidence = 3/4 = 0.75 (75 %)
-Diaper → Bread:  confidence = 3/3 = 1.00 (100 %)
-```
-**In words:** *of all the baskets containing Bread, 75 % also contained Diaper.* Confidence is **directional** — `X→Y` and `Y→X` are different rules with different confidences.
-
-**Minimum confidence (minconf)** is the user's second threshold (commonly 0.5–0.7). Rules passing both thresholds are **strong association rules**.
-
-**Limitation of confidence:** a high-confidence rule may be trivial. `{Milk} → {Bread}` with confidence 0.75 is unimpressive if **80 % of all baskets already contain Bread** — buying milk actually *slightly reduces* the chance of bread. Confidence alone cannot detect this; **lift** can. (This is the classic teaching point behind the "diapers → beer" story.)
-
----
-
-## 5. Lift (and the other interestingness measures)
-
-```
-lift(X → Y) = confidence(X→Y) / support(Y) = s(X∪Y) / (s(X)·s(Y))
-```
-
-| Lift value | Interpretation |
+| Use | What it does |
 |---|---|
-| **lift = 1** | X and Y are **independent** — X tells you nothing about Y |
-| **lift > 1** | **positive** association — X *increases* the chance of Y (useful for cross-selling) |
-| **lift < 1** | **negative** association — X *decreases* the chance of Y (substitutes/competitors) |
+| **Market basket analysis** | identifies which items customers often buy together |
+| **Recommendation systems** | recommends complementary products based on buying behaviour |
+| **Fraud detection** | finds unusual combinations of events that indicate suspicious activity |
+| **Scientific research** | finds frequent patterns in genomic sequences or chemical structures |
+| **Web usage mining** | understands user navigation behaviour on websites |
 
-*Worked:* `σ({Bread, Diaper}) = 3`, `σ(Bread) = 4`, `σ(Diaper) = 3`, N = 5.
-`support(Bread ∪ Diaper) = 0.6`, `support(Bread) = 0.8`, `support(Diaper) = 0.6`.
-`lift = 0.6 / (0.8 × 0.6) = 0.6/0.48 = 1.25` → buying bread raises the chance of buying diapers by 25 % — a genuine positive association.
+## A4. Types of patterns found (five types — a very likely short question)
 
-**Other measures worth naming** (Topic 13 covers them in detail): **leverage** `s(X∪Y) − s(X)s(Y)`, **conviction** `(1 − s(Y))/(1 − c(X→Y))`, **χ²** (tests independence), **all-confidence**, **cosine**, **Kulczynski**, **Jaccard**.
+1. **Frequent itemsets** — sets of items appearing frequently in transactions (e.g. *Milk, Bread*).
+2. **Frequent sequences** — ordered lists occurring in a specific order (e.g. a user viewing Page A → Page B → Page C).
+3. **Frequent substructures** — patterns in graphs or networks (protein structures, social-network patterns).
+4. **Closed frequent itemsets** — frequent itemsets that have **no superset with the same support count**.
+5. **Maximal frequent itemsets** — frequent itemsets that have **no frequent superset at all**.
 
-**Support vs confidence vs lift in one line each:**
-- **Support** = how often the rule applies (coverage, usefulness).
-- **Confidence** = how reliable the rule is (accuracy, *given* the antecedent).
-- **Lift** = how much better than chance the rule is (interestingness, correlation).
+*Each type provides different insights depending on the application.* The last two are **compact representations**: closed sets preserve all support information in fewer itemsets; maximal sets are the most compact but lose subset supports.
+
+*Example showing the difference:* if `{A,B}` has support 3 and `{A,B,C}` also has support 3, then `{A,B}` is **not closed** (a superset has the same support), while `{A,B,C}` is both **closed and maximal**.
+
+## A5. Challenges in frequent pattern mining
+
+| Challenge | Why it is hard |
+|---|---|
+| **Large number of possible itemsets** | with n items there are **2ⁿ** possible itemsets — the search space grows exponentially |
+| **Low minimum support** | a small threshold produces a very large number of frequent patterns, making processing difficult |
+| **Data sparsity** | datasets with many unique items have low overlap, making pattern extraction hard |
+| **Multiple scans of data** | some algorithms (Apriori) must scan the database many times, increasing cost |
+| **Memory limitations** | storing and processing millions of candidate itemsets needs significant memory |
+
+**These five challenges are exactly the design goals of the algorithms** — which is the best possible exam link to make.
+
+## A6. Popular algorithms (three names, one line each)
+
+| Algorithm | Strategy |
+|---|---|
+| **Apriori** | **bottom-up**; generates candidate itemsets and tests their support; based on the principle that all subsets of a frequent itemset must also be frequent |
+| **FP-Growth** | uses a **compressed representation (FP-Tree)**; **avoids candidate generation**; much faster than Apriori on large datasets |
+| **Eclat** | **depth-first search** with a **vertical data representation** (item → list of transaction ids); efficient for **dense** datasets |
+
+> **Eclat in one sentence for the exam:** instead of storing which items each transaction contains, Eclat stores **which transactions each item occurs in** (a vertical/tid-list format), then intersects those tid-lists to get the support of an itemset — no repeated database scans, and the intersection is fast set arithmetic.
+
+**Why a vertical format helps:** support of `{A,B}` = `|tid(A) ∩ tid(B)|`. The intersection gives the *exact* count instantly and produces the tid-list for the larger itemset as a by-product, which is why Eclat suits **dense** data (many long transactions).
+
+## A7. Applications across industries
+
+| Sector | Use |
+|---|---|
+| **Retail & e-commerce** | market basket analysis, store-layout design, cross-selling, promotions |
+| **Banking** | fraud detection, credit-risk analysis |
+| **Telecommunications** | churn prediction, network optimisation |
+| **Healthcare** | co-occurring disease symptoms, treatment combinations |
+| **Social media** | trending topics, common user behaviours |
+| **Manufacturing** | predicting equipment failures from frequent fault patterns |
+
+## A8. The importance of the support threshold
+
+- **Too high** → important but **rare** patterns are missed (e.g. the fraud combination you were looking for).
+- **Too low** → **too many patterns** are generated, making analysis difficult (and mining slow).
+
+The threshold must **balance meaningful pattern discovery against computational efficiency**. In practice: start high, inspect the output, lower it until the pattern count becomes unmanageable — and remember that *rare but valuable* patterns are exactly what "too high" destroys.
 
 ---
 
-## 6. The mining task, stated formally
+# PART B — Frequent Itemset Mining: Support, Confidence, Lift
 
-Given a transaction database `D`, a minimum support `minsup` and a minimum confidence `minconf`, find:
-1. **All frequent itemsets** — every itemset X with `support(X) ≥ minsup`.
-2. **All strong association rules** — every rule `X → Y` derived from a frequent itemset with `confidence ≥ minconf`.
+## B1. Introduction
 
-**Two-phase structure (important — this is the architecture of every algorithm in this unit):**
-```
-Phase 1:  frequent itemset generation   (expensive — exponential search, pruned by support)
-Phase 2:  rule generation               (cheap — from each frequent itemset, enumerate splits)
-```
-Because every rule `X→Y` derived from itemset `Z = X∪Y` automatically has `support(Z)`, support is computed **once** in phase 1 and reused in phase 2.
+Frequent itemset mining identifies **sets of items that appear together frequently** in transactional datasets. It is used mainly in **market basket analysis, recommendation systems, fraud detection and behavioural analytics**.
 
-**Computational complexity of phase 1** (three factors to quote):
-1. **Number of items (d)** — the search space is `2^d`.
-2. **Number of transactions (N)** — each candidate needs a scan.
-3. **Average transaction width** — wider baskets mean more/longer itemsets.
+**Association rule mining is built on top of frequent itemset mining** and uses three measures — **support, confidence, lift** — which determine how **strong and meaningful** the discovered patterns are.
 
----
+## B2. Transactions and itemsets
 
-## 7. A complete small example (do this by hand until it is automatic)
+A **transaction** is a collection of items purchased or appearing together; an **itemset** is a set of one or more items.
+
+**Your page's example dataset:**
 
 | TID | Items |
 |---|---|
-| T1 | A, B, C |
-| T2 | A, C |
-| T3 | A, D |
-| T4 | B, C |
-| T5 | A, B, C |
+| T1 | Milk, Bread, Eggs |
+| T2 | Milk, Diaper |
+| T3 | Bread, Butter, Milk |
+| T4 | Bread, Diaper, Eggs |
 
-`minsup = 40 %` of 5 = **2 transactions**; `minconf = 60 %`.
+The goal: **find which item combinations occur frequently.**
 
-**Frequent itemsets:** `A(4), B(3), C(4), AB(2), AC(3), BC(3), ABC(2)` — `D(1)` is pruned.
+## B3. Support
 
-**Rules from `{A, B, C}` (support 0.4):**
+**Support of an itemset X = (number of transactions containing X) / (total number of transactions).**
 
-| Rule | Confidence | ≥ 0.6? |
+Support ranges from **0 to 1**. A higher support means the itemset is **common** and may be useful for **general** patterns.
+
+**Example (your page):** if `{Milk, Bread}` appears in **3 out of 10** transactions, `support = 3/10 = 0.3`.
+
+**Using your four-transaction dataset (N = 4):**
+```
+support({Milk})        = 3/4 = 0.75     (T1, T2, T3)
+support({Bread})       = 3/4 = 0.75     (T1, T3, T4)
+support({Eggs})        = 2/4 = 0.50     (T1, T4)
+support({Diaper})      = 2/4 = 0.50     (T2, T4)
+support({Milk, Bread}) = 2/4 = 0.50     (T1, T3)
+```
+
+**Why support matters (five reasons from your page):**
+1. It identifies **how frequently items occur together**.
+2. It helps **remove rare combinations** that may not be meaningful.
+3. It **controls the size of the output** by setting a minimum support threshold.
+4. It ensures discovered patterns are **statistically significant**.
+5. It **improves efficiency** by ignoring itemsets that appear too rarely.
+
+*A rule with high support is more useful for general business decisions.*
+
+## B4. Confidence
+
+**Confidence measures the strength of an association rule** — how often the consequent appears in transactions that contain the antecedent.
+
+```
+For X → Y:   confidence = support(X ∪ Y) / support(X)
+```
+It is the **conditional probability that Y occurs given that X has already occurred**.
+
+**Example (your page):** if **100 customers bought Milk** and **60 of those also bought Bread**, then `confidence(Milk → Bread) = 60/100 = 0.6` — *60 % of customers who buy Milk also buy Bread.*
+
+**Using the four-transaction dataset:**
+```
+confidence(Milk → Bread) = 0.50 / 0.75 = 0.667   (66.7 %)
+confidence(Bread → Milk) = 0.50 / 0.75 = 0.667
+```
+Confidence is **directional**: with different supports, `X → Y` and `Y → X` differ. (Here the supports coincide, so both are 0.667 — state that, it shows you understand why.)
+
+**Why confidence matters:**
+1. It tells **how reliably the rule predicts the consequent**.
+2. High-confidence rules are more useful for **recommendation systems**.
+3. It helps determine **purchasing-behaviour patterns**.
+4. It is used to **filter out weak or unreliable rules**.
+5. A rule with **high support but low confidence may still not be useful**, because it does not strongly indicate a relationship.
+
+## B5. Lift
+
+**Lift evaluates the usefulness or significance of a rule**: it compares the **observed** support of X and Y together with the support **expected if X and Y were independent**.
+
+```
+lift(X → Y) = support(X ∪ Y) / (support(X) × support(Y))
+```
+
+| Lift | Interpretation |
+|---|---|
+| **= 1** | X and Y occur **independently** |
+| **> 1** | **positive association** — X increases the likelihood of Y; a strong, useful rule |
+| **< 1** | **negative association** — X decreases the likelihood of Y; the rule is not meaningful (they are substitutes/competitors) |
+
+**Your page's example:** if Milk and Bread appear together **more often than expected** from their individual supports, lift > 1.
+
+**Using the four-transaction dataset:**
+```
+lift(Milk → Bread) = 0.50 / (0.75 × 0.75) = 0.50 / 0.5625 = 0.889
+```
+Lift **below 1** → although confidence was a respectable 66.7 %, milk and bread are in fact **slightly negatively associated** in this tiny dataset. *This is the single most important lesson of the topic: confidence is not enough.*
+
+## B6. Why lift is important (it fixes what confidence cannot)
+
+**Confidence may be high simply because the consequent item is very frequent.** Lift corrects for that by dividing by the consequent's own base rate.
+
+Lift is important because:
+1. It identifies **true associations**, not just popular items.
+2. It helps avoid **misleading rules caused by high-frequency items**.
+3. It measures **how much better than random chance** the rule performs.
+4. It helps **select the most meaningful rules** for decision-making.
+
+*A high lift indicates a strong, meaningful relationship useful for recommendations and marketing.*
+
+## B7. The 100-transaction worked example (your page, expanded)
+
+**Assume 100 total transactions.**
+```
+support(Milk)        = 0.5
+support(Bread)       = 0.4
+support(Milk, Bread) = 0.3
+```
+
+**Confidence:**
+```
+confidence(Milk → Bread) = 0.3 / 0.5 = 0.6    (60 %)
+confidence(Bread → Milk) = 0.3 / 0.4 = 0.75   (75 %)
+```
+
+**Lift (identical in both directions — lift is symmetric):**
+```
+lift = 0.3 / (0.5 × 0.4) = 0.3 / 0.2 = 1.5
+```
+
+**Interpretation (write exactly this):** lift = 1.5 > 1 means Milk and Bread are bought together **more often than expected** under independence → a **positive, strong association**. Note that the two rules have **different confidence (0.6 vs 0.75) but the same lift (1.5)** — confidence is directional, lift is symmetric. That single sentence answers many questions.
+
+## B8. Differences between the three measures (your page's summary table)
+
+| Measure | What it measures | What it shows |
 |---|---|---|
-| A → BC | 0.4/0.8 = 0.50 | ✗ |
-| B → AC | 0.4/0.6 = 0.67 | ✓ |
-| C → AB | 0.4/0.8 = 0.50 | ✗ |
-| AB → C | 0.4/0.4 = 1.00 | ✓ |
-| AC → B | 0.4/0.6 = 0.67 | ✓ |
-| BC → A | 0.4/0.6 = 0.67 | ✓ |
+| **Support** | **frequency** | how common the itemset is |
+| **Confidence** | **rule strength** | how often Y appears when X appears |
+| **Lift** | **rule significance** | how much better the rule is than random chance |
 
-So `{B → AC}`, `{AB → C}`, `{AC → B}`, `{BC → A}` are strong. Notice confidence is computed by dividing the *same* support of ABC by the support of the antecedent — no extra database scan. **Lift** for `AB → C`: `0.4/(0.4 × 0.8) = 1.25` → a real association.
+*Together, these three determine whether a rule is **frequent, strong and statistically interesting**.*
+
+**The one-line memory hook:** **S**upport = *how often*; **C**onfidence = *how reliably*; **L**ift = *how much better than chance*.
 
 ---
 
-## 8. Summary paragraph
+## B9. Summary paragraph
 
-Frequent pattern mining finds itemsets that co-occur often and turns them into rules `X → Y`. Three measures define everything: **support** = how often the itemset appears (coverage), **confidence** = how often Y appears when X does (reliability), **lift** = confidence divided by Y's base rate (interest beyond chance: 1 = independent, >1 positive, <1 negative). Mining has two phases — generate all frequent itemsets with support ≥ minsup, then derive rules with confidence ≥ minconf — and phase 1 is the expensive part because the itemset space is `2^d`. Its feasibility rests on the anti-monotonic property of support: **if an itemset is infrequent, every superset is infrequent too**, which is the Apriori principle.
+Frequent pattern mining finds itemsets, sequences and substructures that occur more often than a user-set threshold, and it is the base of market basket analysis, recommendation, fraud detection and web mining. Its key terms are support, itemset, frequent itemset, candidate itemset, transaction and minimum support; its five challenges (2ⁿ itemsets, low support, sparsity, repeated scans, memory) are exactly why the three algorithms exist — **Apriori** (bottom-up candidates + pruning), **FP-Growth** (two scans + compressed FP-tree, no candidates) and **Eclat** (depth-first vertical tid-list intersections, good on dense data). Within that, support measures frequency, confidence measures `P(Y|X)` and lift divides confidence by Y's base rate, so that lift = 1 is independence, > 1 positive and < 1 negative — the measure that catches rules which are merely popular rather than genuinely associated.
 
 ---
 **Next:** [Topic 10 — Apriori Algorithm: Working Principle](10-apriori-working-principle.md)
