@@ -1,180 +1,252 @@
 # Topic 13 — Mining Association Rules: Rule Generation & Interestingness Measures
 
 > **LMS page:** *Chapter 2.3 — Mining Association Rules: Rule Generation, Interestingness Measures* · **CO3**
-> *This page had not arrived when this was written, so the note is built from the course textbooks (Han Ch. 6.2–6.3, Tan Ch. 6.7) in the same style. It will be aligned with your page when it arrives.*
+> Written to your page's structure and using its examples (`{A,B,C}` rule list and the Bread/Milk/Butter support table), with the standard theory added where your page points to it.
 
 ---
 
-## 1. Where rule generation sits
+# PART A — RULE GENERATION
 
-Association mining has two phases:
+## A1. Introduction to association rule mining
+
+**Association rule mining is the process of discovering meaningful relationships among items in transactional data.**
+
+Once **frequent itemsets** are discovered using **Apriori or FP-Growth**, the next step is to **generate association rules from those itemsets**. The rules explain **how items or events are related** and are widely used in **retail, recommendation systems, fraud detection and marketing**.
+
+**Association rules are expressed as `X → Y`**, meaning: *when X occurs, Y is likely to occur.* (Formally `X ∩ Y = ∅`, with `X` the **antecedent** and `Y` the **consequent**.)
+
+## A2. What rule generation is
+
+**Rule generation is the process of creating valid association rules from frequent itemsets that satisfy minimum confidence and other interestingness measures.**
+
+- A frequent itemset can generate **many** possible rules.
+- **Only rules that meet the required thresholds are selected.**
+
+**Your page's example:** from the frequent itemset **`{A, B, C}`** the possible rules are:
+
+| # | Rule |
+|---|---|
+| 1 | `A → B C` |
+| 2 | `B → A C` |
+| 3 | `C → A B` |
+| 4 | `A B → C` |
+| 5 | `A C → B` |
+| 6 | `B C → A` |
+
+That is `2³ − 2 = 6` rules — in general a k-itemset yields **`2^k − 2`** rules (every non-empty proper subset as antecedent), which is why pruning is essential at k = 10 (1,022 rules) and beyond.
+
+**Each rule must be evaluated using support, confidence and other metrics.**
+
+## A3. The six steps of rule generation (your page — memorise the sequence)
+
+**Step 1.** Identify all **frequent itemsets** that satisfy minimum support.
+**Step 2.** For each frequent itemset, list **all possible non-empty subsets**.
+**Step 3.** For each subset X, generate a rule of the form **`X → (itemset − X)`**.
+**Step 4.** Calculate the **confidence** of each rule and compare it with **minimum confidence**.
+**Step 5.** **Discard** rules that fail to meet the confidence threshold.
+**Step 6.** Evaluate the remaining rules using **additional interestingness measures** to ensure they are meaningful.
+
+*This systematic approach ensures only strong and relevant rules are generated.*
+
+### A3.1 The confidence formula and the pruning trick (the exam-grade detail)
 
 ```
-Phase 1:  frequent itemset generation   ← Apriori (Topic 10) or FP-Growth (Topic 12)
-Phase 2:  rule generation               ← this topic
+confidence(X → Y) = support(X ∪ Y) / support(X) = σ(X∪Y)/σ(X)
 ```
+**Support is free** — every rule from itemset Z has `support(Z)`, already computed in the frequent-itemset phase. **No extra database scan is needed**; rule generation is pure arithmetic on numbers you already have.
 
-**Why phase 2 is cheap:** every rule `X → Y` derived from a frequent itemset `Z = X ∪ Y` automatically inherits `support(Z)`. No new database scan is needed — only confidence arithmetic on supports already computed.
+**Confidence monotonicity:** for a fixed Z, `σ(Z)` is constant, so confidence rises as the antecedent grows (consequent shrinks). **Therefore if `X → Y` fails minconf, every rule with a smaller antecedent and a larger consequent also fails** — whole branches can be pruned, which is what keeps the output manageable.
 
-**The task.** From each frequent itemset `Z`, generate all rules `X → Z−X` (for every non-empty proper subset X) and keep those with `confidence ≥ minconf`. Such rules are called **strong** association rules; those satisfying both thresholds {support ≥ minsup, confidence ≥ minconf}.
+## A4. Complete worked example on the `{A,B,C}` itemset
 
-> **Total possible rules from an itemset of size k:** `2^k − 2` (every non-empty proper subset as antecedent). For k = 10 that is 1,022 rules from one itemset — hence the need for the confidence pruning below.
+Frequent itemset `{A,B,C}` with `σ(A)=4, σ(B)=3, σ(C)=4, σ(AB)=2, σ(AC)=3, σ(BC)=3, σ(ABC)=2, N=5`, **minconf = 60 %.**
 
----
+**Level 1 — one-item consequents:**
 
-## 2. Rule generation — the algorithm
-
-**Confidence of a candidate rule** from frequent itemset `Z`, with antecedent `X ⊂ Z`, consequent `Y = Z − X`:
-```
-confidence(X → Y) = σ(Z) / σ(X)
-```
-
-**Key observation (the confidence monotonicity that enables pruning):** for a **fixed itemset Z**, `σ(Z)` is constant, so confidence depends only on `σ(X)`. As the antecedent `X` **grows**, `σ(X)` **shrinks**, so confidence **increases**. Equivalently, as the **consequent grows**, confidence falls.
-
-**Therefore:** if a rule `X → Y` does **not** meet minconf, then **every rule with a smaller antecedent and larger consequent fails too** (e.g. if `{A,B} → {C,D}` fails, then `{A} → {B,C,D}` also fails). This lets us prune whole branches — the "Apriori of rules".
-
-### 2.1 The algorithm (apriori-genrules)
-
-```
-for each frequent itemset Z:                     # sorted, k = |Z|
-    H₁ = { single-item consequents h : h ∈ Z }   # 1-item consequents
-    call GENRULES(Z, H₁)
-
-GENRULES(Z, H_m):                                # H_m = set of m-item consequents
-    if |Z| − m ≥ 1:
-        for each h ∈ H_m:
-            conf = σ(Z) / σ(Z − h)
-            if conf ≥ minconf:  output rule (Z − h) → h
-            else:               delete h from H_m       # prune
-        H_(m+1) = APRIORI_GEN(H_m, minconf)      # join m-item consequents into (m+1)-item ones
-        if H_(m+1) ≠ ∅: call GENRULES(Z, H_(m+1))
-```
-
-Two pruning ideas are used together:
-1. **Confidence pruning** — a failing rule kills every rule whose consequent is a superset of it.
-2. **Support pruning (built in)** — a rule's `Z` is frequent by construction, so support is never violated.
-
-### 2.2 Full worked example (the one to know by heart)
-
-Frequent itemset `Z = {A, B, C}`, `σ(Z) = 2`, `σ(A) = 4`, `σ(B) = 3`, `σ(C) = 4`, `σ(AB) = 2`, `σ(AC) = 3`, `σ(BC) = 3`, `N = 5`. **minconf = 60 %.**
-
-**Level 1 — one-item consequents** (`conf = σ(ABC)/σ(antecedent)`):
-
-| Rule | Confidence | ≥ 0.6? | Action |
-|---|---|---|---|
-| AB → C | 2/2 = **1.00** | ✓ | output |
-| AC → B | 2/3 = **0.67** | ✓ | output |
-| BC → A | 2/3 = **0.67** | ✓ | output |
-
-All three pass → continue to level 2 (join consequents: `{C,B}`, `{C,A}`, `{B,A}`).
+| Rule | Confidence = σ(ABC)/σ(antecedent) | ≥ 0.6? |
+|---|---|---|
+| AB → C | 2/2 = **1.00** | ✓ |
+| AC → B | 2/3 = **0.67** | ✓ |
+| BC → A | 2/3 = **0.67** | ✓ |
 
 **Level 2 — two-item consequents:**
 
-| Rule | Confidence | ≥ 0.6? | Action |
-|---|---|---|---|
-| A → BC | 2/4 = **0.50** | ✗ | **prune** — and with it any 3-item consequent |
-| B → AC | 2/3 = **0.67** | ✓ | output |
-| C → AB | 2/4 = **0.50** | ✗ | **prune** |
+| Rule | Confidence | ≥ 0.6? |
+|---|---|---|
+| A → BC | 2/4 = **0.50** | ✗ (prune) |
+| B → AC | 2/3 = **0.67** | ✓ |
+| C → AB | 2/4 = **0.50** | ✗ (prune) |
 
-**Level 3** — consequents of size 3 would need antecedent size 0, which is not allowed → stop.
+**Strong rules:** `AB → C (1.00)`, `AC → B (0.67)`, `BC → A (0.67)`, `B → AC (0.67)`.
 
-**Final strong rules:** `AB → C (1.00)`, `AC → B (0.67)`, `BC → A (0.67)`, `B → AC (0.67)`.
+**Why the two failures matter:** `A → BC` and `C → AB` fail because A and C are the **popular** items (support 0.8), so conditioning on them carries little information. **A confident rule needs a specific (low-support) antecedent and a common consequent** — a sentence that earns marks.
 
-Notice: `A → BC` and `C → AB` failed because their antecedents are the *popular* items (A and C appear in 4 baskets, so conditioning on them is weak). **A confident rule needs a specific (low-support) antecedent and a common consequent** — a sentence worth writing in the exam.
+## A5. Your page's worked example: `Bread Milk → Butter`
+
+**Given (100 transactions):**
+
+| Itemset | Support |
+|---|---|
+| Bread + Milk | 30 % (0.30) |
+| Bread + Butter | 20 % (0.20) |
+| Milk + Butter | 25 % (0.25) |
+| Bread + Milk + Butter | 15 % (0.15) |
+| Butter (alone) | 40 % (0.40) |
+
+**Rule generation for `Bread Milk → Butter`:**
+
+```
+Support of the rule      = support(Bread, Milk, Butter) = 0.15   (15 %)
+Confidence               = support(Bread, Milk, Butter) / support(Bread, Milk)
+                         = 0.15 / 0.30 = 0.50                   (50 %)
+Lift                     = support(Bread, Milk, Butter) / (support(Bread, Milk) × support(Butter))
+                         = 0.15 / (0.30 × 0.40)
+                         = 0.15 / 0.12 = 1.25
+```
+
+**Interpretation (write exactly this):** *confidence of 50 % means half of the customers who buy Bread and Milk also buy Butter; lift = 1.25 > 1 indicates a meaningful **positive** relationship — the combination raises the chance of buying butter by 25 % over chance.*
+
+**The complete rule set from `{Bread, Milk, Butter}`** (useful practice — compute each one). Your page does not give the individual supports of Bread and Milk, so take **support(Bread) = 0.60** and **support(Milk) = 0.50**; state such an assumption explicitly in an exam.
+
+| Rule | Confidence | Lift |
+|---|---|---|
+| Bread Milk → Butter | 0.15/0.30 = **0.50** | 0.15/(0.30×0.40) = **1.25** |
+| Bread Butter → Milk | 0.15/0.20 = **0.75** | 0.15/(0.20×0.50) = **1.50** |
+| Milk Butter → Bread | 0.15/0.25 = **0.60** | 0.15/(0.25×0.60) = **1.00** |
+| Bread → Milk Butter | 0.15/0.60 = **0.25** | 0.15/(0.60×0.25) = **1.00** |
+| Milk → Bread Butter | 0.15/0.50 = **0.30** | 0.15/(0.50×0.20) = **1.50** |
+| Butter → Bread Milk | 0.15/0.40 = **0.375** | 0.15/(0.40×0.30) = **1.25** |
+
+Two lessons visible in the table: the rules with a **single-item antecedent** have the lowest confidence (they must predict **two** items), and **lift is identical for a rule and its mirror image** — `Bread Milk → Butter` and `Butter → Bread Milk` are both 1.25; `Bread Butter → Milk` and `Milk → Bread Butter` are both 1.50. **Lift is symmetric, confidence is not.**
 
 ---
 
-## 3. Why support + confidence are not enough (the need for interestingness)
+# PART B — INTERESTINGNESS MEASURES
 
-**The problem.** Support and confidence can both be satisfied by rules that are **trivially true, redundant, or misleading**. Four classic failures:
+## B1. Why interestingness measures are needed
 
-**(a) The trivial rule.** `{Milk} → {Bread}` with confidence 0.75 looks impressive — until you notice 80 % of all baskets contain bread. Buying milk actually *lowers* the chance of bread (lift 0.94). Confidence without a base-rate comparison is meaningless.
+**Not all rules with high confidence are truly meaningful**, so additional measures are needed. The three most commonly used are **support, confidence and lift**.
 
-**(b) Independence.** If tea and coffee are bought independently at 50 % each, then `Tea → Coffee` has confidence 0.5 — a "rule" that says nothing. Lift = 1 exposes it.
+| Measure | What it measures | What it shows |
+|---|---|---|
+| **Support** | how frequently the rule occurs | a rule **must** meet minimum support to be considered |
+| **Confidence** | how often the consequent appears when the antecedent is present | the **reliability** of the rule |
+| **Lift** | how much more often X and Y occur together than if independent | **> 1** positive, **= 1** independent, **< 1** negative association |
 
-**(c) Cross-support patterns (rare-item inflation).** Item `X` appears in 0.1 % of transactions, `Y` in 0.1 %, together in 0.09 % — **confidence near 90 %** with very low support. Such a rule usually describes a coincidence in a tiny sample, not a business pattern. *Remedy:* also require a minimum **support of the consequent** or use measures that correct for imbalance.
+## B2. Additional interestingness measures (your page's four)
 
-**(d) Simpson's paradox / confounding.** A rule can hold overall but reverse inside every subgroup (a drug looks helpful overall but harmful for both men and women). Aggregated association rules hide the confounder.
+**Leverage** — the **difference between the observed frequency of X and Y occurring together and the expected frequency under independence**:
+```
+leverage = P(X ∪ Y) − P(X)·P(Y)
+```
+A leverage **close to zero indicates independence** (positive → co-occur more than chance; negative → less).
 
-**The fix.** Add an **interestingness measure** (objective, data-driven, e.g. lift) or have a domain expert judge **subjective interestingness** (unexpectedness, actionability, novelty).
+**Conviction** — measures **how strongly the absence of Y is related to the presence of X**:
+```
+conviction = (1 − P(Y)) / (1 − confidence(X → Y))
+```
+**Higher conviction = stronger rule.** It equals 1 under independence and ∞ for a rule that is always right (confidence = 1). It is **asymmetric**, so it distinguishes `X → Y` from `Y → X` even when their lifts agree.
 
----
+**Cosine similarity** — evaluates **how close the relationship between two items is, based on angle similarity**:
+```
+cosine = P(X ∪ Y) / √(P(X)·P(Y))
+```
+**Used for symmetric associations** (it does not favour either direction) and it is **null-invariant** — adding transactions that contain neither item does not change it.
 
-## 4. Objective interestingness measures
+**Jaccard measure** — the **ratio of the intersection over the union of item occurrences**:
+```
+jaccard = P(X ∪ Y) / (P(X) + P(Y) − P(X ∪ Y))
+```
+**Useful when analysing similarity between sets**; also symmetric and null-invariant.
 
-Let `X → Y`, with `P(X) = s(X)`, `P(Y) = s(Y)`, `P(XY) = s(X∪Y)`.
+*These measures help analysts choose rules that are **statistically meaningful and not just frequent**.*
 
-| Measure | Formula | Range | Meaning of the neutral point |
+## B3. The full measure table (for a numerical question)
+
+For `X → Y` with `P(X)=0.8, P(Y)=0.6, P(X∪Y)=0.4`:
+
+| Measure | Formula | Value | Verdict |
 |---|---|---|---|
-| **Support** | `P(XY)` | [0,1] | coverage / frequency of the rule |
-| **Confidence** | `P(XY)/P(X)` | [0,1] | reliability given X |
-| **Lift** | `P(XY)/(P(X)P(Y))` | [0,∞) | **1 = independent**, >1 positive, <1 negative |
-| **Leverage** | `P(XY) − P(X)P(Y)` | [−0.25, 0.25] | **0 = independent**; the absolute "extra" co-occurrence |
-| **Conviction** | `(1 − P(Y)) / (1 − confidence)` | [0,∞) | **1 = independent**; how strongly X implies Y (asymmetric) |
-| **χ² (chi-square)** | `Σ (obs − exp)²/exp` over the 2×2 table | [0, N] | 0 = independent; needs significance testing |
-| **All-confidence** | `min` over rules from itemset of confidence | [0,1] | how "tight" the whole itemset is |
-| **Cosine** | `P(XY)/√(P(X)P(Y))` | [0,1] | 0 = independent |
-| **Jaccard** | `P(XY)/(P(X)+P(Y)−P(XY))` | [0,1] | 0 = no overlap |
-| **Kulczynski** | `½ [P(XY)/P(X) + P(XY)/P(Y)]` | [0,1] | average conditional probability, symmetric |
+| Support | `P(X∪Y)` | 0.400 | frequent |
+| Confidence | `P(X∪Y)/P(X)` | 0.500 | respectable |
+| **Lift** | `P(X∪Y)/(P(X)P(Y))` | **0.833** | **negative association** |
+| Leverage | `P(X∪Y) − P(X)P(Y)` | −0.080 | co-occur less than chance |
+| Conviction | `(1−P(Y))/(1−conf)` | 0.800 | confirms negative |
+| Cosine | `P(X∪Y)/√(P(X)P(Y))` | 0.577 | weak |
+| Jaccard | `P(X∪Y)/(P(X)+P(Y)−P(X∪Y))` | 0.400 | weak |
+| Kulczynski | `½[P(XY)/P(X) + P(XY)/P(Y)]` | 0.583 | weak |
 
-**Worked numbers** for `X → Y` with `P(X)=0.8, P(Y)=0.6, P(XY)=0.4`:
-```
-support    = 0.40
-confidence = 0.40/0.80 = 0.500
-lift       = 0.40/(0.80×0.60) = 0.833        → slightly negative association
-leverage   = 0.40 − 0.48 = −0.080             → co-occur less than chance
-conviction = (1−0.6)/(1−0.5) = 0.80           → < 1 confirms the negative direction
-cosine     = 0.40/√(0.48) = 0.577
-jaccard    = 0.40/(0.8+0.6−0.4) = 0.40
-```
-Every measure except support/confidence says this rule is **not worth acting on** — the lesson of the section.
+**Every measure except support and confidence says this rule is not worth acting on** — the single most important point of the topic.
 
-### 4.1 Which measure should you use?
+## B4. Which measure to use when
 
 | Situation | Prefer |
 |---|---|
 | Retail cross-selling, balanced item frequencies | **lift** (simple, interpretable) |
 | Need an absolute (not ratio) effect size | **leverage** |
-| Direction matters and independence must be 1 | **conviction** |
-| Very imbalanced supports (rare items) | **null-invariant measures**: cosine, Jaccard, Kulczynski, all-confidence |
-| Statistical rigour, significance testing | **χ²** with a p-value (and note its weakness with small counts) |
+| Direction matters, independence must equal 1 | **conviction** |
+| Very imbalanced supports (rare items) | **null-invariant** measures: cosine, Jaccard, Kulczynski, all-confidence |
+| Statistical rigour, significance testing | **χ²** with a p-value |
 | Explaining to a business audience | **support + confidence + lift**, in that order |
 
-### 4.2 Null invariance (the modern, exam-extra point)
-
-A measure is **null-invariant** if its value does **not** change when you add transactions containing **neither** X nor Y. Lift, χ², leverage and conviction are **not** null-invariant — adding irrelevant transactions changes them, and with very different supports (a 0.01 % item vs a 50 % item) they become misleading. **Cosine, Jaccard, Kulczynski and all-confidence are null-invariant**, so they are preferred for **cross-support** data. The practical compromise used in research (Tan et al.) is to **rank by Kulczynski and filter by support imbalance** (IR = imbalance ratio).
+**Null invariance (worth a sentence in a 10-mark answer):** a measure is null-invariant if its value does not change when transactions containing **neither** item are added. **Lift, leverage, conviction and χ² are not** null-invariant; **cosine, Jaccard, Kulczynski and all-confidence are** — which is why they are preferred for **cross-support** data (a 0.01 % item paired with a 50 % item).
 
 ---
 
-## 5. Subjective interestingness
+# PART C — IMPORTANCE AND CHALLENGES
 
-Objective measures cannot know what the user already knows. **Subjective interestingness** asks whether a pattern is:
-- **Unexpected** (not already known to the analyst),
-- **Actionable** (leads to a decision or profit),
-- **Novel** and **understandable**,
-- **Corroborated** by other sources.
+## C1. Why interestingness measures are necessary (your page's five reasons)
 
-Hence systems add **templates / constraints**: `meta-rule guided mining` — e.g. only mine rules of the form `{product} → {product}` with `age ∈ [20,30]`, or rules involving a specific item of interest. Constraint pushing prunes the search enormously *and* keeps output relevant.
+1. **Confidence alone can be misleading when the consequent is very frequent.**
+2. **Lift** identifies whether the rule is **stronger than random chance**.
+3. **Leverage** highlights **how much extra support** the rule has beyond independence.
+4. **Conviction** helps judge **how strongly the rule predicts** the consequent.
+5. They **prevent selecting rules that appear strong but have no practical significance**.
 
----
+*These measures help analysts focus only on the most useful and actionable rules.*
 
-## 6. Redundancy and the output problem
+## C2. Challenges in rule generation (your page's five)
 
-Even with thresholds, rule sets contain **redundant rules**: if `A → BC` holds strongly, then `AB → C` and `AC → B` add little. Common compact representations:
-
-| Concept | Definition | Why it helps |
+| Challenge | Why it happens | Mitigation |
 |---|---|---|
-| **Closed frequent itemset** | an itemset with **no proper superset of the same support** | the complete set of frequent itemsets with their supports can be derived from the closed ones — usually far fewer |
-| **Maximal frequent itemset** | a frequent itemset with **no frequent proper superset** | most compact, but supports of subsets are lost (only bounds are known) |
-| **Non-redundant / minimal rule set** | rules that cannot be derived from others | far smaller output for humans |
+| A single frequent itemset can generate **many possible rules** | `2^k − 2` rules per k-itemset | confidence pruning; closed/maximal itemsets |
+| **Low thresholds** produce **too many rules** | support and confidence both permissive | raise thresholds, constrain with templates |
+| **Interpretation** is difficult | statistical strength ≠ business meaning | domain expert review, subjective interestingness |
+| **Computational cost** rises rapidly | dataset size and item diversity | efficient measures, pruning, parallelism |
+| Many rules are **redundant or uninteresting** | overlapping itemsets produce near-duplicates | non-redundant/minimal rule sets |
 
-*Example:* if `{A,B}:3` and `{A,B,C}:3`, then `{A,B}` is **not closed** (its superset has equal support), while `{A,B,C}` is both **closed** and **maximal**.
+**Efficient evaluation using interestingness measures is crucial to manage these challenges.**
 
 ---
 
-## 7. Summary paragraph
+# PART D — ADVANCED POINTS (for the extra 2–3 marks)
 
-Rule generation takes each frequent itemset `Z` and enumerates rules `X → Z−X`, keeping those with `confidence = σ(Z)/σ(X) ≥ minconf`; because confidence rises as the antecedent shrinks, a failing rule prunes every rule with a larger consequent, which keeps the output manageable. Support plus confidence alone, however, produce trivial, independent or rare-item-inflated rules, so **interestingness measures** are added: **lift** (`1` = independence, `>1` positive, `<1` negative), **leverage**, **conviction**, **χ²**, and the null-invariant **cosine, Jaccard, Kulczynski and all-confidence** for data with very different item frequencies. Output is then condensed using **closed**, **maximal** or **non-redundant** representations and constrained with meta-rules so that the final patterns are not merely statistically strong but genuinely **interesting and actionable**.
+## D1. Four classic failures of support + confidence
+
+1. **The trivial rule** — `{Milk} → {Bread}` at 75 % confidence is unimpressive if 80 % of baskets already contain bread (lift < 1).
+2. **Independence** — two items each bought 50 % of the time give a 50 %-confidence rule that says nothing (lift = 1).
+3. **Cross-support patterns** — rare item X (0.1 %) and rare Y (0.1 %) occurring together in 0.09 % gives ~90 % confidence on a handful of transactions.
+4. **Simpson's paradox** — a rule can hold overall yet reverse inside every subgroup (a confounder is hidden by aggregation).
+
+## D2. Compact representations of the output
+
+| Concept | Definition | Benefit |
+|---|---|---|
+| **Closed frequent itemset** | a frequent itemset with **no proper superset of the same support** | preserves all itemsets *and* their supports in far fewer entries |
+| **Maximal frequent itemset** | a frequent itemset with **no frequent proper superset** | most compact; subset supports are only bounded, not known |
+| **Non-redundant rule set** | rules not derivable from others | a human-sized output |
+
+*Example:* if `{A,B}:3` and `{A,B,C}:3`, then `{A,B}` is **not closed**, and `{A,B,C}` is **both closed and maximal**. (A maximal itemset is always closed; the converse is false.)
+
+## D3. Subjective interestingness
+
+Objective measures cannot know what the analyst already knows. A pattern is subjectively interesting if it is **unexpected, actionable, novel, understandable and corroborated**. Systems therefore allow **meta-rule guided mining** — e.g. mine only rules whose antecedent contains a chosen product, or whose consequent is in a chosen category — which both shrinks the output and makes it relevant.
+
+---
+
+## D4. Summary paragraph
+
+Rule generation turns each frequent itemset Z into rules `X → Z−X`, in six steps: take the frequent itemsets, list every non-empty subset, form the rule, compute `confidence = σ(Z)/σ(X)`, discard anything below minimum confidence, then filter the survivors with further interestingness measures. Because confidence rises as the antecedent grows, one failing rule prunes all weaker-antecedent variants, which is the only reason large itemsets are tractable (a k-itemset has `2^k − 2` rules). Support measures frequency, confidence measures reliability, and **lift** compares the rule against the consequent's base rate (1 = independent, > 1 positive, < 1 negative), with **leverage, conviction, cosine and Jaccard** available for direction, absolute effect and rare-item cases. The goal throughout is to move from rules that are merely *frequent and strong* to rules that are **statistically interesting and practically actionable**.
 
 ---
 **End of notes.** Continue to the [revision cheat sheet](../exam/cheat-sheet.md) and the [question bank](../exam/question-bank.md).
